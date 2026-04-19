@@ -21,6 +21,19 @@ const emit = defineEmits<{
   wallpaperChange: [wallpaperId: string]
 }>()
 
+// 当前激活的设置项
+const activeTab = ref('audio')
+
+// 设置项定义
+const settingsTabs = [
+  { id: 'audio', name: '音频设置', icon: '🔊' },
+  { id: 'alert', name: '心率预警', icon: '⚠️' },
+  { id: 'cache', name: '缓存设置', icon: '💾' },
+  { id: 'wallpaper', name: '背景壁纸', icon: '🎨' },
+  { id: 'help', name: '使用说明', icon: '❓' },
+  { id: 'about', name: '关于', icon: 'ℹ️' }
+]
+
 const audioEnabledLocal = ref(props.audioEnabled)
 const audioTypeLocal = ref(props.audioType)
 const alertEnabledLocal = ref(props.alertEnabled)
@@ -28,6 +41,11 @@ const highThresholdLocal = ref(props.highThreshold)
 const lowThresholdLocal = ref(props.lowThreshold)
 const cacheDurationLocal = ref(props.cacheDuration)
 const wallpaperLocal = ref(props.wallpaper)
+
+// 切换设置项
+const switchTab = (tabId: string) => {
+  activeTab.value = tabId
+}
 
 // 监听props变化
 watch(() => props.audioEnabled, (newValue) => {
@@ -153,10 +171,28 @@ onMounted(() => {
         <button class="close-btn" @click="handleClose">×</button>
       </div>
       
-      <div class="settings-content">
-        <!-- 音频设置 -->
-        <div class="settings-section">
-          <h4>音频设置</h4>
+      <div class="settings-body">
+        <!-- 左侧导航栏 -->
+        <aside class="settings-sidebar">
+          <nav class="settings-nav">
+            <button
+              v-for="tab in settingsTabs"
+              :key="tab.id"
+              class="nav-item"
+              :class="{ active: activeTab === tab.id }"
+              @click="switchTab(tab.id)"
+            >
+              <span class="nav-icon">{{ tab.icon }}</span>
+              <span class="nav-name">{{ tab.name }}</span>
+            </button>
+          </nav>
+        </aside>
+
+        <!-- 右侧内容区 -->
+        <div class="settings-content">
+          <!-- 音频设置 -->
+          <div v-if="activeTab === 'audio'" class="settings-section">
+            <h4>🔊 音频设置</h4>
           
           <div class="setting-group">
             <label class="toggle-switch-large">
@@ -213,10 +249,10 @@ onMounted(() => {
             </div>
           </div>
         </div>
-
+        
         <!-- 预警设置 -->
-        <div class="settings-section">
-          <h4>心率预警</h4>
+        <div v-if="activeTab === 'alert'" class="settings-section">
+          <h4>⚠️ 心率预警</h4>
           
           <div class="setting-group">
             <label class="toggle-switch-large">
@@ -268,10 +304,10 @@ onMounted(() => {
             <p class="setting-hint">修改后点击“保存生效”按钮应用新阈值</p>
           </div>
         </div>
-
+        
         <!-- 缓存设置 -->
-        <div class="settings-section">
-          <h4>缓存设置</h4>
+        <div v-if="activeTab === 'cache'" class="settings-section">
+          <h4>💾 缓存设置</h4>
           
           <div class="setting-group">
             <label class="setting-label">历史记录缓存时长</label>
@@ -297,10 +333,10 @@ onMounted(() => {
             <p class="setting-hint">超出时长的记录将自动清理，避免网页卡滞</p>
           </div>
         </div>
-
+        
         <!-- 壁纸设置 -->
-        <div class="settings-section">
-          <h4>背景壁纸</h4>
+        <div v-if="activeTab === 'wallpaper'" class="settings-section">
+          <h4>🎨 背景壁纸</h4>
           
           <div class="setting-group">
             <label class="setting-label">选择喜欢的壁纸</label>
@@ -319,10 +355,10 @@ onMounted(() => {
             <p class="setting-hint">点击预览图切换背景壁纸</p>
           </div>
         </div>
-
+        
         <!-- 使用说明 -->
-        <div class="settings-section">
-          <h4>使用说明</h4>
+        <div v-if="activeTab === 'help'" class="settings-section">
+          <h4>❓ 使用说明</h4>
           <div class="info-box">
             <p><strong>如何连接心率设备：</strong></p>
             <ol>
@@ -344,10 +380,10 @@ onMounted(() => {
             </p>
           </div>
         </div>
-
+        
         <!-- 关于 -->
-        <div class="settings-section">
-          <h4>关于</h4>
+        <div v-if="activeTab === 'about'" class="settings-section">
+          <h4>ℹ️ 关于</h4>
           <div class="about-info">
             <p>心动 - 心率监测系统</p>
             <p>基于 Vue 3 + Three.js 开发</p>
@@ -355,6 +391,7 @@ onMounted(() => {
               本应用仅供娱乐和演示用途，不能替代专业医疗设备
             </p>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -390,9 +427,10 @@ onMounted(() => {
   background: rgba(245, 245, 245, 0.98);
   border-radius: 12px;
   width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
+  max-width: 900px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   animation: slideUp 0.3s;
 }
@@ -441,8 +479,69 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.1);
 }
 
+/* 设置主体区域 */
+.settings-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 左侧导航栏 */
+.settings-sidebar {
+  width: 200px;
+  background: rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 20px 0;
+  overflow-y: auto;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: left;
+  color: #555;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+  background: rgba(255, 0, 51, 0.05);
+  color: #ff0033;
+}
+
+.nav-item.active {
+  background: rgba(255, 0, 51, 0.1);
+  color: #ff0033;
+  border-left-color: #ff0033;
+  font-weight: bold;
+}
+
+.nav-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.nav-name {
+  flex: 1;
+}
+
+/* 右侧内容区 */
 .settings-content {
+  flex: 1;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .settings-section {
@@ -900,21 +999,29 @@ input:checked + .toggle-slider-large:before {
 }
 
 /* 滚动条样式 */
-.settings-panel::-webkit-scrollbar {
+.settings-panel::-webkit-scrollbar,
+.settings-content::-webkit-scrollbar,
+.settings-sidebar::-webkit-scrollbar {
   width: 8px;
 }
 
-.settings-panel::-webkit-scrollbar-track {
+.settings-panel::-webkit-scrollbar-track,
+.settings-content::-webkit-scrollbar-track,
+.settings-sidebar::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
 }
 
-.settings-panel::-webkit-scrollbar-thumb {
+.settings-panel::-webkit-scrollbar-thumb,
+.settings-content::-webkit-scrollbar-thumb,
+.settings-sidebar::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
 
-.settings-panel::-webkit-scrollbar-thumb:hover {
+.settings-panel::-webkit-scrollbar-thumb:hover,
+.settings-content::-webkit-scrollbar-thumb:hover,
+.settings-sidebar::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
 }
 
@@ -942,5 +1049,81 @@ input:checked + .toggle-slider-large:before {
 
 .light-mode .theme-option:has(input:checked) {
   background: rgba(255, 0, 51, 0.05);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .settings-panel {
+    width: 95%;
+    max-width: none;
+    height: 85vh;
+  }
+
+  .settings-body {
+    flex-direction: column;
+  }
+
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 10px 0;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 5px;
+    padding: 0 10px;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+
+  .nav-item.active {
+    border-left-color: transparent;
+    border-bottom-color: #ff0033;
+  }
+
+  .nav-icon {
+    font-size: 20px;
+  }
+
+  .settings-content {
+    padding: 15px;
+  }
+
+  .audio-type-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-header {
+    padding: 15px;
+  }
+
+  .settings-header h3 {
+    font-size: 18px;
+  }
+
+  .nav-name {
+    display: none;
+  }
+
+  .nav-item {
+    padding: 8px;
+  }
+
+  .nav-icon {
+    font-size: 22px;
+  }
 }
 </style>
