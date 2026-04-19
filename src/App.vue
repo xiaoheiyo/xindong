@@ -8,6 +8,7 @@ import WallpaperManager from './components/WallpaperManager.vue'
 import BluetoothManager from './components/BluetoothManager.vue'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
+import HeartRateStatus from './components/HeartRateStatus.vue'
 import type { AlertSettings } from './components/HeartRateManager.vue'
 import type { HeartRateRecord } from './components/HistoryManager.vue'
 
@@ -188,6 +189,9 @@ onUnmounted(() => {
           <span class="bpm-value">{{ bpm || '--' }}</span>
           <span class="bpm-unit">次/分</span>
         </div>
+        
+        <!-- 心跳状况模块 -->
+        <HeartRateStatus :bpm="bpm" :is-connected="isConnected" />
       </section>
 
       <!-- ECG 显示 -->
@@ -340,15 +344,11 @@ onUnmounted(() => {
   width: 100%;
   text-align: left;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding-left: 20px;
-}
-
-.ecg-section {
-  width: 100%;
-  max-width: none;
-  padding: 0;
+  align-items: stretch;  /* 改为stretch,让子元素高度一致 */
+  justify-content: space-between;
+  padding: 0 40px;
+  gap: 30px;
+  min-height: 150px;  /* 设置最小高度 */
 }
 
 .heart-rate-display {
@@ -356,6 +356,7 @@ onUnmounted(() => {
   align-items: baseline;
   justify-content: flex-start;
   gap: 15px;
+  flex-shrink: 0;
 }
 
 .heart-icon {
@@ -402,6 +403,12 @@ onUnmounted(() => {
   opacity: 0.7;
   margin-left: 5px;
   font-weight: normal;
+}
+
+.ecg-section {
+  width: 100%;
+  max-width: none;
+  padding: 0;
 }
 
 
