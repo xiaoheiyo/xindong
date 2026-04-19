@@ -367,7 +367,7 @@ defineExpose({
 .history-time {
   font-size: 14px;
   color: #666;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .history-bpm {

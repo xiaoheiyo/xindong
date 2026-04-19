@@ -5,6 +5,23 @@
   box-sizing: border-box;
 }
 
+/* 定义字体变量 - 使用系统字体作为离线fallback */
+:root {
+  /* 像素字体 - Press Start 2P 的替代 */
+  --font-pixel: 'Press Start 2P', 'Courier New', 'Lucida Console', Monaco, monospace;
+  
+  /* 现代字体 - Orbitron 的替代 */
+  --font-modern: 'Orbitron', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  
+  /* 代码字体 - JetBrains Mono 的替代 */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+  
+  /* 默认字体 */
+  --font-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -12,9 +29,7 @@ html, body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-default);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #e8e8e8;

@@ -798,7 +798,7 @@ input:checked + .toggle-slider-large:before {
   background: rgba(255, 255, 255, 0.8);
   color: #333;
   font-size: 14px;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: var(--font-pixel);
   transition: all 0.3s;
   width: 100%;
 }
@@ -981,7 +981,7 @@ input:checked + .toggle-slider-large:before {
   font-size: 32px;
   font-weight: bold;
   color: #ff0033;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: var(--font-pixel);
   margin-right: 8px;
 }
 

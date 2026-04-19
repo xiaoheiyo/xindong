@@ -66,7 +66,7 @@ const handleConnect = () => {
   font-size: 24px;
   font-weight: bold;
   color: #ff0033;
-  font-family: 'Orbitron', sans-serif;
+  font-family: var(--font-modern);
 }
 
 .status-indicator {

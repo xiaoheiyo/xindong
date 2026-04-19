@@ -137,7 +137,7 @@ const statusIcon = computed(() => {
 }
 
 .status-text {
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: var(--font-pixel);
 }
 
 .status-description {

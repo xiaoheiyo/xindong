@@ -411,7 +411,7 @@ onUnmounted(() => {
   font-size: 120px;
   font-weight: bold;
   color: #9acd32;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: var(--font-pixel);
   text-shadow: 0 0 20px rgba(154, 205, 50, 0.5);
   letter-spacing: 4px;
 }
@@ -521,7 +521,7 @@ onUnmounted(() => {
 .history-time {
   font-size: 14px;
   color: #666;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .history-bpm {
