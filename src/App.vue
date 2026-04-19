@@ -40,6 +40,17 @@ const recordInterval = 5000 // 每5秒记录一次
 const cacheDuration = ref(24) // 默认缓存24小时（单位：小时）
 const maxCacheDuration = 48 // 最大缓存48小时
 
+// 壁纸设置
+const wallpaper = ref('gradient-blue') // 默认蓝色渐变壁纸
+const wallpaperList = [
+  { id: 'gradient-blue', name: '蓝色渐变', class: 'wallpaper-gradient-blue' },
+  { id: 'gradient-purple', name: '紫色渐变', class: 'wallpaper-gradient-purple' },
+  { id: 'gradient-sunset', name: '日落橙红', class: 'wallpaper-gradient-sunset' },
+  { id: 'gradient-forest', name: '森林绿色', class: 'wallpaper-gradient-forest' },
+  { id: 'gradient-ocean', name: '海洋深蓝', class: 'wallpaper-gradient-ocean' },
+  { id: 'solid-dark', name: '深色纯色', class: 'wallpaper-solid-dark' }
+]
+
 // 音频上下文
 let audioContext: AudioContext | null = null
 
@@ -343,6 +354,17 @@ const updateCacheDuration = (hours: number) => {
   }
 }
 
+// 更新壁纸设置
+const updateWallpaper = (wallpaperId: string) => {
+  wallpaper.value = wallpaperId
+  try {
+    localStorage.setItem('wallpaper', wallpaperId)
+    console.log('[壁纸] 已更新为:', wallpaperId)
+  } catch (error) {
+    console.error('保存壁纸设置失败:', error)
+  }
+}
+
 // 从localStorage加载历史记录
 const loadHistoryFromStorage = () => {
   try {
@@ -473,6 +495,17 @@ onMounted(() => {
     console.error('[缓存] 加载设置失败:', error)
   }
 
+  // 加载壁纸设置
+  try {
+    const savedWallpaper = localStorage.getItem('wallpaper')
+    if (savedWallpaper && wallpaperList.some(w => w.id === savedWallpaper)) {
+      wallpaper.value = savedWallpaper
+    }
+    console.log('[壁纸] 加载设置:', wallpaper.value)
+  } catch (error) {
+    console.error('[壁纸] 加载设置失败:', error)
+  }
+
   // 请求通知权限
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission()
@@ -515,7 +548,7 @@ onUnmounted(() => {
     </header>
 
     <!-- 主内容 -->
-    <main class="main-content">
+    <main :class="wallpaper" class="main-content">
       <!-- 心率显示 - 左侧 -->
       <section class="heart-rate-section">
         <div class="heart-rate-display">
@@ -586,12 +619,15 @@ onUnmounted(() => {
       @audio-type-change="updateAudioType"
       @alert-update="updateAlertSettings"
       @cache-duration-update="updateCacheDuration"
+      @wallpaper-change="updateWallpaper"
       :audio-enabled="audioEnabled"
       :audio-type="audioType"
       :alert-enabled="alertEnabled"
       :high-threshold="highThreshold"
       :low-threshold="lowThreshold"
       :cache-duration="cacheDuration"
+      :wallpaper="wallpaper"
+      :wallpaper-list="wallpaperList"
     />
   </div>
 </template>
@@ -601,6 +637,48 @@ onUnmounted(() => {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
+}
+
+/* 主内容区背景壁纸 */
+.main-content {
+  padding-top: 60px;
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 80px 20px 80px 20px;
+  position: relative;
+  z-index: 10;
+  transition: background 0.5s ease;
+  /* 默认背景色 */
+  background: #e6f4f4;
+}
+
+/* 壁纸样式 - 使用 !important 确保优先级 */
+.main-content.wallpaper-gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.main-content.wallpaper-gradient-purple {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%) !important;
+}
+
+.main-content.wallpaper-gradient-sunset {
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%) !important;
+}
+
+.main-content.wallpaper-gradient-forest {
+  background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%) !important;
+}
+
+.main-content.wallpaper-gradient-ocean {
+  background: linear-gradient(135deg, #2e3192 0%, #1bffff 100%) !important;
+}
+
+.main-content.wallpaper-solid-dark {
+  background: #1a1a1a !important;
 }
 
 /* 顶部控制栏 */
@@ -732,20 +810,6 @@ input:checked + .toggle-slider:before {
 .connect-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* 主内容区 */
-.main-content {
-  padding-top: 60px;
-  min-height: calc(100vh - 120px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 30px;
-  padding: 80px 20px 80px 20px;
-  position: relative;
-  z-index: 10;
 }
 
 .heart-rate-section {

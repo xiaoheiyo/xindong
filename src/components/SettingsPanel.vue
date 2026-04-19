@@ -8,6 +8,8 @@ const props = defineProps<{
   highThreshold: number
   lowThreshold: number
   cacheDuration: number
+  wallpaper: string
+  wallpaperList: Array<{ id: string; name: string; class: string }>
 }>()
 
 const emit = defineEmits<{
@@ -16,6 +18,7 @@ const emit = defineEmits<{
   audioTypeChange: [type: 'sine' | 'square' | 'triangle' | 'sawtooth']
   alertUpdate: [enabled: boolean, high?: number, low?: number]
   cacheDurationUpdate: [hours: number]
+  wallpaperChange: [wallpaperId: string]
 }>()
 
 const audioEnabledLocal = ref(props.audioEnabled)
@@ -24,6 +27,7 @@ const alertEnabledLocal = ref(props.alertEnabled)
 const highThresholdLocal = ref(props.highThreshold)
 const lowThresholdLocal = ref(props.lowThreshold)
 const cacheDurationLocal = ref(props.cacheDuration)
+const wallpaperLocal = ref(props.wallpaper)
 
 // 监听props变化
 watch(() => props.audioEnabled, (newValue) => {
@@ -49,6 +53,10 @@ watch(() => props.lowThreshold, (newValue) => {
 watch(() => props.cacheDuration, (newValue) => {
   cacheDurationLocal.value = newValue
   updateSliderBackground()
+})
+
+watch(() => props.wallpaper, (newValue) => {
+  wallpaperLocal.value = newValue
 })
 
 // 更新滑块背景
@@ -80,24 +88,38 @@ const toggleAlert = () => {
   emit('alertUpdate', alertEnabledLocal.value)
 }
 
-// 更新高阈值
-const updateHighThreshold = () => {
-  if (highThresholdLocal.value > lowThresholdLocal.value) {
-    emit('alertUpdate', alertEnabledLocal.value, highThresholdLocal.value)
-  } else {
-    alert('高阈值必须大于低阈值！')
-    highThresholdLocal.value = props.highThreshold
+// 验证阈值（仅本地验证，不保存）
+const validateThresholds = () => {
+  if (highThresholdLocal.value <= lowThresholdLocal.value) {
+    console.warn('[验证] 高阈值必须大于低阈值')
+    return false
   }
+  
+  if (highThresholdLocal.value < 60 || highThresholdLocal.value > 200) {
+    console.warn('[验证] 高阈值超出范围')
+    return false
+  }
+  
+  if (lowThresholdLocal.value < 30 || lowThresholdLocal.value > 90) {
+    console.warn('[验证] 低阈值超出范围')
+    return false
+  }
+  
+  return true
 }
 
-// 更新低阈值
-const updateLowThreshold = () => {
-  if (lowThresholdLocal.value < highThresholdLocal.value) {
-    emit('alertUpdate', alertEnabledLocal.value, undefined, lowThresholdLocal.value)
-  } else {
-    alert('低阈值必须小于高阈值！')
-    lowThresholdLocal.value = props.lowThreshold
+// 保存阈值设置
+const saveThresholdSettings = () => {
+  // 验证阈值范围
+  if (!validateThresholds()) {
+    alert('阈值设置无效，请检查：\n1. 高阈值必须大于低阈值\n2. 高阈值范围：60-200 BPM\n3. 低阈值范围：30-90 BPM')
+    return
   }
+  
+  // 发送更新事件
+  emit('alertUpdate', alertEnabledLocal.value, highThresholdLocal.value, lowThresholdLocal.value)
+  console.log('[设置] 阈值已保存:', { high: highThresholdLocal.value, low: lowThresholdLocal.value })
+  alert('✅ 阈值设置已保存并生效！')
 }
 
 // 更新缓存时长
@@ -109,6 +131,12 @@ const updateCacheDuration = () => {
     alert('缓存时长必须在1-48小时之间！')
     cacheDurationLocal.value = props.cacheDuration
   }
+}
+
+// 切换壁纸
+const changeWallpaper = (wallpaperId: string) => {
+  wallpaperLocal.value = wallpaperId
+  emit('wallpaperChange', wallpaperId)
 }
 
 // 组件挂载时初始化滑块
@@ -211,10 +239,10 @@ onMounted(() => {
                 <input 
                   type="number" 
                   v-model.number="highThresholdLocal"
-                  @change="updateHighThreshold"
                   min="60"
                   max="200"
                   class="threshold-input"
+                  placeholder="60-200"
                 />
               </div>
               <div class="threshold-item">
@@ -222,14 +250,22 @@ onMounted(() => {
                 <input 
                   type="number" 
                   v-model.number="lowThresholdLocal"
-                  @change="updateLowThreshold"
                   min="30"
                   max="90"
                   class="threshold-input"
+                  placeholder="30-90"
                 />
               </div>
             </div>
-            <p class="setting-hint">超出范围时将发出声音和通知警告</p>
+            <button class="save-threshold-btn" @click="saveThresholdSettings">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              保存生效
+            </button>
+            <p class="setting-hint">修改后点击“保存生效”按钮应用新阈值</p>
           </div>
         </div>
 
@@ -259,6 +295,28 @@ onMounted(() => {
               </div>
             </div>
             <p class="setting-hint">超出时长的记录将自动清理，避免网页卡滞</p>
+          </div>
+        </div>
+
+        <!-- 壁纸设置 -->
+        <div class="settings-section">
+          <h4>背景壁纸</h4>
+          
+          <div class="setting-group">
+            <label class="setting-label">选择喜欢的壁纸</label>
+            <div class="wallpaper-grid">
+              <button
+                v-for="wp in wallpaperList"
+                :key="wp.id"
+                class="wallpaper-option"
+                :class="{ active: wallpaperLocal === wp.id }"
+                @click="changeWallpaper(wp.id)"
+              >
+                <div class="wallpaper-preview" :class="wp.class"></div>
+                <span class="wallpaper-name">{{ wp.name }}</span>
+              </button>
+            </div>
+            <p class="setting-hint">点击预览图切换背景壁纸</p>
           </div>
         </div>
 
@@ -656,6 +714,111 @@ input:checked + .toggle-slider-large:before {
 .threshold-input::-webkit-inner-spin-button,
 .threshold-input::-webkit-outer-spin-button {
   opacity: 1;
+}
+
+/* 保存阈值按钮 */
+.save-threshold-btn {
+  margin-top: 15px;
+  width: 100%;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #ff0033 0%, #cc0029 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(255, 0, 51, 0.3);
+}
+
+.save-threshold-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 0, 51, 0.5);
+  background: linear-gradient(135deg, #ff1a47 0%, #e60033 100%);
+}
+
+.save-threshold-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(255, 0, 51, 0.3);
+}
+
+.save-threshold-btn svg {
+  flex-shrink: 0;
+}
+
+/* 壁纸选择网格 */
+.wallpaper-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.wallpaper-option {
+  border: 3px solid transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0;
+}
+
+.wallpaper-option:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 0, 51, 0.3);
+}
+
+.wallpaper-option.active {
+  border-color: #ff0033;
+  box-shadow: 0 0 15px rgba(255, 0, 51, 0.4);
+}
+
+.wallpaper-preview {
+  width: 100%;
+  height: 80px;
+  transition: all 0.3s;
+}
+
+.wallpaper-name {
+  display: block;
+  padding: 8px;
+  font-size: 12px;
+  color: #333;
+  text-align: center;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* 壁纸预览样式（与App.vue保持一致） */
+.wallpaper-preview.wallpaper-gradient-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.wallpaper-preview.wallpaper-gradient-purple {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.wallpaper-preview.wallpaper-gradient-sunset {
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%);
+}
+
+.wallpaper-preview.wallpaper-gradient-forest {
+  background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+}
+
+.wallpaper-preview.wallpaper-gradient-ocean {
+  background: linear-gradient(135deg, #2e3192 0%, #1bffff 100%);
+}
+
+.wallpaper-preview.wallpaper-solid-dark {
+  background: #1a1a1a;
 }
 
 /* 缓存时长滑块 */
