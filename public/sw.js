@@ -1,18 +1,24 @@
 const CACHE_NAME = 'xindong-v1';
 const ASSETS_TO_CACHE = [
-  '/',
   '/index.html',
   '/favicon.ico',
-  '/assets/js/index-zoel91I5.js',
-  '/assets/css/index-Cznai0eH.css',
 ];
 
 // 安装Service Worker
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] 缓存资源');
-      return cache.addAll(ASSETS_TO_CACHE);
+      console.log('[SW] 开始缓存资源');
+      // 分别添加每个资源,避免一个失败导致全部失败
+      return Promise.all(
+        ASSETS_TO_CACHE.map(url => 
+          cache.add(url).catch(err => {
+            console.warn(`[SW] 缓存失败: ${url}`, err);
+          })
+        )
+      );
+    }).then(() => {
+      console.log('[SW] 核心资源缓存完成');
     })
   );
   self.skipWaiting();
