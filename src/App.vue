@@ -133,6 +133,10 @@ const handleCacheDurationUpdate = (hours: number) => {
   console.log('[缓存] 时长更新:', hours)
 }
 
+const handleMaxRecordsUpdate = (count: number) => {
+  console.log('[设置] 最大记录数更新:', count)
+}
+
 const handleRecordAdded = (record: HeartRateRecord) => {
   console.log('[历史记录] 新增记录:', record)
 }
@@ -256,6 +260,7 @@ onUnmounted(() => {
       @audio-type-change="heartRateManagerRef?.updateAudioType($event)"
       @alert-update="(enabled, high, low) => heartRateManagerRef?.updateAlertSettings({ enabled, highThreshold: high, lowThreshold: low })"
       @cache-duration-update="historyManagerRef?.updateCacheDuration($event)"
+      @max-records-update="handleMaxRecordsUpdate"
       @wallpaper-change="wallpaperManagerRef?.changeWallpaper($event)"
       :audio-enabled="heartRateManagerRef?.isAudioEnabled() || false"
       :audio-type="heartRateManagerRef?.getAudioType() || 'sine'"
@@ -263,6 +268,7 @@ onUnmounted(() => {
       :high-threshold="heartRateManagerRef?.getAlertSettings().highThreshold || 100"
       :low-threshold="heartRateManagerRef?.getAlertSettings().lowThreshold || 50"
       :cache-duration="cacheDuration"
+      :max-records="historyManagerRef?.getMaxRecords() || 720"
       :wallpaper="wallpaperManagerRef?.selectedWallpaper || 'gradient-blue'"
       :wallpaper-list="wallpaperManagerRef?.wallpaperList || []"
     />

@@ -8,6 +8,7 @@ const props = defineProps<{
   highThreshold: number
   lowThreshold: number
   cacheDuration: number
+  maxRecords?: number  // 最大历史记录数
   wallpaper: string
   wallpaperList: Array<{ id: string; name: string; class: string }>
 }>()
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   audioTypeChange: [type: 'sine' | 'square' | 'triangle' | 'sawtooth']
   alertUpdate: [enabled: boolean, high?: number, low?: number]
   cacheDurationUpdate: [hours: number]
+  maxRecordsUpdate: [count: number]  // 新增：更新最大记录数
   wallpaperChange: [wallpaperId: string]
 }>()
 
@@ -40,6 +42,7 @@ const alertEnabledLocal = ref(props.alertEnabled)
 const highThresholdLocal = ref(props.highThreshold)
 const lowThresholdLocal = ref(props.lowThreshold)
 const cacheDurationLocal = ref(props.cacheDuration)
+const maxRecordsLocal = ref(props.maxRecords || 720)  // 新增：本地记录数状态
 const wallpaperLocal = ref(props.wallpaper)
 
 // 切换设置项
@@ -71,6 +74,12 @@ watch(() => props.lowThreshold, (newValue) => {
 watch(() => props.cacheDuration, (newValue) => {
   cacheDurationLocal.value = newValue
   updateSliderBackground()
+})
+
+watch(() => props.maxRecords, (newValue) => {
+  if (newValue !== undefined) {
+    maxRecordsLocal.value = newValue
+  }
 })
 
 watch(() => props.wallpaper, (newValue) => {
@@ -148,6 +157,18 @@ const updateCacheDuration = () => {
   } else {
     alert('缓存时长必须在1-48小时之间！')
     cacheDurationLocal.value = props.cacheDuration
+  }
+}
+
+// 更新最大记录数
+const updateMaxRecords = () => {
+  const count = maxRecordsLocal.value
+  if (count >= 50 && count <= 2000) {
+    emit('maxRecordsUpdate', count)
+    console.log('[设置] 最大记录数已更新:', count)
+  } else {
+    alert('历史记录数量必须在50-2000之间！')
+    maxRecordsLocal.value = props.maxRecords || 720
   }
 }
 
@@ -309,6 +330,25 @@ onMounted(() => {
         <div v-if="activeTab === 'cache'" class="settings-section">
           <h4>💾 缓存设置</h4>
           
+          <!-- 历史记录数量设置 -->
+          <div class="setting-group">
+            <label class="setting-label">历史记录最大条目数</label>
+            <div class="records-control">
+              <input 
+                type="number" 
+                v-model.number="maxRecordsLocal"
+                @change="updateMaxRecords"
+                min="50"
+                max="2000"
+                step="50"
+                class="records-input"
+              />
+              <span class="records-unit">条</span>
+            </div>
+            <p class="setting-hint">设置范围：50-2000条，当前可存储约{{ Math.floor(maxRecordsLocal / 60) }}小时的数据</p>
+          </div>
+          
+          <!-- 缓存时长设置 -->
           <div class="setting-group">
             <label class="setting-label">历史记录缓存时长</label>
             <div class="cache-duration-control">
@@ -926,6 +966,50 @@ input:checked + .toggle-slider-large:before {
   padding: 15px;
   background: rgba(0, 0, 0, 0.03);
   border-radius: 8px;
+}
+
+/* 历史记录数量输入框 */
+.records-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.records-input {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.records-input:focus {
+  outline: none;
+  border-color: #ff0033;
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 3px rgba(255, 0, 51, 0.1);
+}
+
+.records-input::-webkit-inner-spin-button,
+.records-input::-webkit-outer-spin-button {
+  opacity: 1;
+  height: 30px;
+}
+
+.records-unit {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+  min-width: 40px;
 }
 
 .duration-slider {

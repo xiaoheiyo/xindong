@@ -15,8 +15,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  maxRecords: 50,
-  recordInterval: 5000,
+  maxRecords: 720,           // 最大记录数 (1小时，每分钟1条)
+  recordInterval: 60000,     // 记录间隔(毫秒) - 改为60秒
   cacheDuration: 24,
   maxCacheDuration: 48
 })
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 // 状态
 const records = ref<HeartRateRecord[]>([])
 const lastRecordTime = ref<number>(0)
+const lastRecordedBpm = ref<number>(0)  // 上次记录的心率值
 const currentCacheDuration = ref<number>(props.cacheDuration)
 
 // 尝试添加一条心率记录
@@ -37,7 +38,18 @@ const tryAddRecord = (bpm: number): boolean => {
   const now = Date.now()
 
   // 检查是否满足记录条件
-  if (now - lastRecordTime.value < props.recordInterval || bpm <= 0) {
+  if (bpm <= 0) {
+    return false
+  }
+
+  // 智能记录策略:
+  // 1. 首次记录
+  // 2. 距离上次记录超过间隔时间
+  // 3. 心率变化超过阈值(5 BPM)
+  const timeCondition = (now - lastRecordTime.value) >= props.recordInterval
+  const bpmChangeCondition = Math.abs(bpm - lastRecordedBpm.value) >= 5
+  
+  if (!timeCondition && !bpmChangeCondition) {
     return false
   }
 
@@ -55,6 +67,7 @@ const tryAddRecord = (bpm: number): boolean => {
   }
 
   lastRecordTime.value = now
+  lastRecordedBpm.value = bpm
 
   // 保存到localStorage
   saveToStorage()
@@ -62,7 +75,7 @@ const tryAddRecord = (bpm: number): boolean => {
   // 触发事件
   emit('record-added', newRecord)
 
-  console.log('[历史记录] 已保存，当前记录数:', records.value.length)
+  console.log('[历史记录] 已保存，当前记录数:', records.value.length, 'BPM:', bpm)
   return true
 }
 
@@ -232,6 +245,7 @@ defineExpose({
   getRecordsReversed,
   formatTime,
   getCount,
+  getMaxRecords: () => props.maxRecords,  // 新增：获取最大记录数
   records
 })
 </script>
