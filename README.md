@@ -97,12 +97,71 @@ npm run preview
 src/
 ├── components/
 │   ├── ECGCanvas.vue           # 心电图绘制组件
-│   └── SettingsPanel.vue       # 设置面板组件
+│   ├── SettingsPanel.vue       # 设置面板组件
+│   ├── HistoryManager.vue      # 历史记录管理组件
+│   ├── HeartRateManager.vue    # 心跳值管理组件
+│   ├── WallpaperManager.vue    # 壁纸管理组件
+│   ├── BluetoothManager.vue    # 蓝牙管理组件
+│   ├── AppHeader.vue           # 应用顶部栏组件
+│   └── AppFooter.vue           # 应用底部栏组件
+├── modules/
+│   ├── history.ts              # 历史记录模块（已弃用）
+│   ├── heartRate.ts            # 心跳值模块（已弃用）
+│   └── index.ts                # 模块导出索引（已弃用）
 ├── assets/
 │   └── main.css                # 全局样式
 ├── App.vue                     # 主应用组件
 └── main.ts                     # 入口文件
 ```
+
+### 组件化说明
+
+#### 历史记录组件 (HistoryManager.vue)
+- **功能**: 管理心率历史记录的存储、加载和清理
+- **特性**:
+  - 支持配置缓存时长和最大记录数
+  - 自动保存到 localStorage
+  - 提供时间格式化功能
+  - 通过作用域插槽提供灵活的UI定制
+  - 事件驱动：record-added, records-cleared, cache-duration-updated
+- **使用方式**: 通过 ref 访问组件方法，或通过插槽自定义UI
+
+#### 心跳值组件 (HeartRateManager.vue)
+- **功能**: 管理当前心率值的处理和相关功能
+- **特性**:
+  - 音频反馈功能（4种音效类型）
+  - 心率预警检测（过高/过低）
+  - 事件驱动：bpm-updated, alert-triggered, audio-toggled 等
+  - 隐藏式组件，仅提供功能逻辑
+- **使用方式**: 通过 ref 访问组件方法，监听组件事件
+
+#### 壁纸管理组件 (WallpaperManager.vue)
+- **功能**: 管理背景壁纸的切换和持久化
+- **特性**:
+  - 6种精美壁纸预设（渐变+纯色）
+  - 自动应用到页面背景
+  - localStorage 持久化存储
+  - 事件驱动：wallpaper-changed
+  - 实时预览效果
+- **使用方式**: 
+  - 作为隐藏组件提供功能，通过 ref 调用方法
+  - SettingsPanel 中的壁纸选择会调用此组件的方法
+
+#### 蓝牙管理组件 (BluetoothManager.vue)
+- **功能**: 管理蓝牙心率设备的连接和数据接收
+- **特性**:
+  - Web Bluetooth API 封装
+  - 自动解析心率数据（支持8位和16位格式）
+  - 连接状态管理
+  - 事件驱动：connected, disconnected, data-received, connection-error
+  - 浏览器兼容性检查
+  - 自动资源清理
+- **使用方式**: 
+  - 作为隐藏组件提供功能
+  - 通过 ref 调用 connectDevice/disconnectDevice
+  - 监听事件获取心率数据和连接状态
+
+这种组件化设计使得代码更加模块化、可复用，并且符合 Vue 的组件化思想。
 
 ## 注意事项
 

@@ -2,275 +2,77 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import ECGCanvas from './components/ECGCanvas.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
+import HistoryManager from './components/HistoryManager.vue'
+import HeartRateManager from './components/HeartRateManager.vue'
+import WallpaperManager from './components/WallpaperManager.vue'
+import BluetoothManager from './components/BluetoothManager.vue'
+import AppHeader from './components/AppHeader.vue'
+import AppFooter from './components/AppFooter.vue'
+import type { AlertSettings } from './components/HeartRateManager.vue'
+import type { HeartRateRecord } from './components/HistoryManager.vue'
 
 // 状态管理
-const isConnected = ref(false)
-const isConnecting = ref(false)
 const bpm = ref(0)
-const statusText = ref('未连接')
 const showSettings = ref(false)
-const device = ref<BluetoothDevice | null>(null)
-const characteristic = ref<BluetoothRemoteGATTCharacteristic | null>(null)
 
-
-// 音频设置
-const audioEnabled = ref(false)
-const audioType = ref<'sine' | 'square' | 'triangle' | 'sawtooth'>('sine') // 默认正弦波
-
-// 预警设置
-const alertEnabled = ref(false)
-const highThreshold = ref(100) // 心率过高阈值
-const lowThreshold = ref(50)   // 心率过低阈值
-let lastAlertTime = 0
-const alertInterval = 5000 // 预警间隔5秒，避免频繁报警
-const isAlertActive = ref(false) // 预警激活状态（用于边框闪烁）
+// 预警激活状态（用于边框闪烁）
+const isAlertActive = ref(false)
 let alertFlashTimer: number | null = null
 
-// 历史记录
-interface HeartRateRecord {
-  bpm: number
-  timestamp: number
-}
-const historyRecords = ref<HeartRateRecord[]>([])
-const maxHistoryRecords = 50 // 最多保存50条记录
-let lastRecordTime = 0
-const recordInterval = 5000 // 每5秒记录一次
+// 缓存时长
+const cacheDuration = ref(24)
 
-// 缓存设置
-const cacheDuration = ref(24) // 默认缓存24小时（单位：小时）
-const maxCacheDuration = 48 // 最大缓存48小时
-
-// 壁纸设置
-const wallpaper = ref('gradient-blue') // 默认蓝色渐变壁纸
-const wallpaperList = [
-  { id: 'gradient-blue', name: '蓝色渐变', class: 'wallpaper-gradient-blue' },
-  { id: 'gradient-purple', name: '紫色渐变', class: 'wallpaper-gradient-purple' },
-  { id: 'gradient-sunset', name: '日落橙红', class: 'wallpaper-gradient-sunset' },
-  { id: 'gradient-forest', name: '森林绿色', class: 'wallpaper-gradient-forest' },
-  { id: 'gradient-ocean', name: '海洋深蓝', class: 'wallpaper-gradient-ocean' },
-  { id: 'solid-dark', name: '深色纯色', class: 'wallpaper-solid-dark' }
-]
-
-// 音频上下文
-let audioContext: AudioContext | null = null
+// 组件引用
+const historyManagerRef = ref<InstanceType<typeof HistoryManager>>()
+const heartRateManagerRef = ref<InstanceType<typeof HeartRateManager>>()
+const wallpaperManagerRef = ref<InstanceType<typeof WallpaperManager>>()
+const bluetoothManagerRef = ref<InstanceType<typeof BluetoothManager>>()
 
 // 计算样式类
 const bodyClass = computed(() => {
   return 'light-mode'
 })
 
-// 连接蓝牙设备
-const connectDevice = async () => {
-  if (isConnected.value) {
-    console.log('[蓝牙] 断开连接')
-    disconnectDevice()
-    return
-  }
+// 从蓝牙管理器获取状态
+const isConnected = computed(() => bluetoothManagerRef.value?.isConnected || false)
+const isConnecting = computed(() => bluetoothManagerRef.value?.isConnecting || false)
+const statusText = computed(() => bluetoothManagerRef.value?.statusText || '未连接')
 
-  try {
-    isConnecting.value = true
-    statusText.value = '连接中...'
-    console.log('[蓝牙] 开始搜索设备...')
-
-    // 请求蓝牙设备
-    const selectedDevice = await navigator.bluetooth!.requestDevice({
-      filters: [{ services: ['heart_rate'] }]
-    })
-
-    console.log('[蓝牙] 选择设备:', selectedDevice.name || selectedDevice.id)
-    device.value = selectedDevice
-    const server = await selectedDevice.gatt?.connect()
-
-    if (!server) {
-      throw new Error('无法连接到GATT服务器')
-    }
-
-    console.log('[蓝牙] GATT服务器连接成功')
-    const service = await server.getPrimaryService('heart_rate')
-    console.log('[蓝牙] 获取心率服务成功')
-    const char = await service.getCharacteristic('heart_rate_measurement')
-    console.log('[蓝牙] 获取心率特征值成功')
-
-    characteristic.value = char
-
-    // 启动通知
-    await char.startNotifications()
-    console.log('[蓝牙] 通知已启动')
-    char.addEventListener('characteristicvaluechanged', handleHeartRateChange)
-
-    isConnected.value = true
-    statusText.value = '已连接'
-    console.log('[蓝牙] 连接成功！')
-
-    // 监听断开连接
-    selectedDevice.addEventListener('gattserverdisconnected', onDisconnected)
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    console.error('[蓝牙] 连接失败:', error)
-    statusText.value = '连接失败'
-    alert(`连接失败: ${errorMessage}`)
-  } finally {
-    isConnecting.value = false
-  }
+// 壁纸管理器事件处理
+const handleWallpaperChanged = (wallpaperId: string) => {
+  console.log('[壁纸] 已更换为:', wallpaperId)
 }
 
-// 处理心率数据变化
-const handleHeartRateChange = (event: Event) => {
-  const target = event.target as BluetoothRemoteGATTCharacteristic
-  const value = target.value!
-  const flags = value.getUint8(0)
-  const rate16Bits = flags & 0x1
+// 蓝牙事件处理
+const handleBluetoothConnected = (device: { name?: string; id: string }) => {
+  console.log('[蓝牙] 已连接设备:', device.name || device.id)
+}
 
-  let heartRate: number
-  if (rate16Bits) {
-    heartRate = value.getUint16(1, true)
-  } else {
-    heartRate = value.getUint8(1)
-  }
+const handleBluetoothDisconnected = () => {
+  console.log('[蓝牙] 设备已断开')
+  bpm.value = 0
+}
 
+const handleBluetoothDataReceived = (heartRate: number) => {
   bpm.value = heartRate
-  console.log('[心率] 当前心率:', heartRate, 'BPM')
-
-  // 记录历史数据
-  const now = Date.now()
-  if (now - lastRecordTime >= recordInterval && heartRate > 0) {
-    historyRecords.value.push({
-      bpm: heartRate,
-      timestamp: now
-    })
-
-    // 限制记录数量
-    if (historyRecords.value.length > maxHistoryRecords) {
-      historyRecords.value.shift()
-    }
-
-    lastRecordTime = now
-
-    // 保存到localStorage
-    saveHistoryToStorage()
-    console.log('[历史记录] 已保存，当前记录数:', historyRecords.value.length)
+  
+  // 使用心跳值组件处理心率
+  if (heartRateManagerRef.value) {
+    heartRateManagerRef.value.updateBpm(heartRate)
   }
-
-  // 播放音效（如果启用）
-  if (audioEnabled.value && heartRate > 0) {
-    playHeartbeatSound(heartRate)
+  
+  // 使用历史记录组件添加记录
+  if (historyManagerRef.value) {
+    historyManagerRef.value.tryAddRecord(heartRate)
   }
 }
 
-// 播放心跳音效
-const playHeartbeatSound = (heartRate: number) => {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-  }
-
-  const oscillator = audioContext.createOscillator()
-  const gainNode = audioContext.createGain()
-
-  oscillator.connect(gainNode)
-  gainNode.connect(audioContext.destination)
-
-  // 根据心率调整频率
-  const frequency = 600 + (heartRate - 60) * 2
-  oscillator.frequency.value = frequency
-  oscillator.type = audioType.value // 使用选择的音效类型
-
-  // 根据音效类型调整音量和时长
-  let volume = 0.3
-  let duration = 0.1
-
-  if (audioType.value === 'square') {
-    volume = 0.2
-    duration = 0.08
-  } else if (audioType.value === 'triangle') {
-    volume = 0.35
-    duration = 0.12
-  } else if (audioType.value === 'sawtooth') {
-    volume = 0.25
-    duration = 0.09
-  }
-
-  gainNode.gain.setValueAtTime(volume, audioContext.currentTime)
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration)
-
-  oscillator.start(audioContext.currentTime)
-  oscillator.stop(audioContext.currentTime + duration)
+const handleBluetoothError = (error: string) => {
+  console.error('[蓝牙] 错误:', error)
 }
 
-// 播放预警音效
-const playAlertSound = (type: 'high' | 'low') => {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-  }
-
-  const oscillator = audioContext.createOscillator()
-  const gainNode = audioContext.createGain()
-
-  oscillator.connect(gainNode)
-  gainNode.connect(audioContext.destination)
-
-  // 预警音效：高频急促声音
-  oscillator.type = 'square'
-
-  if (type === 'high') {
-    oscillator.frequency.value = 1000 // 过高：高频
-  } else {
-    oscillator.frequency.value = 400  // 过低：低频
-  }
-
-  gainNode.gain.setValueAtTime(0.4, audioContext.currentTime)
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-
-  oscillator.start(audioContext.currentTime)
-  oscillator.stop(audioContext.currentTime + 0.3)
-}
-
-// 检查心率预警
-const checkHeartRateAlert = (heartRate: number) => {
-  if (!alertEnabled.value || heartRate <= 0) return
-
-  const now = Date.now()
-  if (now - lastAlertTime < alertInterval) return // 避免频繁报警
-
-  let alertType: 'high' | 'low' | null = null
-  let alertMessage = ''
-
-  if (heartRate > highThreshold.value) {
-    alertType = 'high'
-    alertMessage = `⚠️ 心率过高警告！当前心率：${heartRate} BPM（阈值：${highThreshold.value} BPM）`
-  } else if (heartRate < lowThreshold.value) {
-    alertType = 'low'
-    alertMessage = `⚠️ 心率过低警告！当前心率：${heartRate} BPM（阈值：${lowThreshold.value} BPM）`
-  }
-
-  if (alertType && alertMessage) {
-    console.warn('[预警]', alertMessage)
-
-    // 播放预警音效
-    playAlertSound(alertType)
-
-    // 显示浏览器通知（如果允许）
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('心率预警', {
-        body: alertMessage,
-        icon: '/favicon.ico'
-      })
-    }
-
-    // 启动边框闪烁特效
-    startAlertFlash()
-
-    // 更新最后预警时间
-    lastAlertTime = now
-  }
-}
-
-// 断开连接
-const disconnectDevice = () => {
-  if (device.value && device.value.gatt?.connected) {
-    device.value.gatt.disconnect()
-  }
-  onDisconnected()
+const handleStatusChange = (status: string, connected: boolean) => {
+  console.log('[蓝牙] 状态变更:', status, connected)
 }
 
 // 启动预警边框闪烁
@@ -297,135 +99,45 @@ const stopAlertFlash = () => {
   console.log('[特效] 停止边框闪烁')
 }
 
-// 断开连接处理
-const onDisconnected = () => {
-  console.log('[蓝牙] 设备已断开')
-  isConnected.value = false
-  statusText.value = '未连接'
-  bpm.value = 0
-  device.value = null
-  characteristic.value = null
-}
-
-// 保存历史记录到localStorage
-const saveHistoryToStorage = () => {
-  try {
-    // 先清理过期记录
-    cleanExpiredRecords()
-
-    localStorage.setItem('heartRateHistory', JSON.stringify(historyRecords.value))
-    console.log('[历史记录] 已保存，当前记录数:', historyRecords.value.length)
-  } catch (error) {
-    console.error('保存历史记录失败:', error)
-  }
-}
-
-// 清理过期记录
-const cleanExpiredRecords = () => {
-  const now = Date.now()
-  const maxAge = cacheDuration.value * 60 * 60 * 1000 // 转换为毫秒
-
-  const beforeCount = historyRecords.value.length
-  historyRecords.value = historyRecords.value.filter(record => {
-    return (now - record.timestamp) < maxAge
-  })
-
-  const removedCount = beforeCount - historyRecords.value.length
-  if (removedCount > 0) {
-    console.log('[缓存清理] 已删除', removedCount, '条过期记录')
-  }
-}
-
-// 更新缓存时长设置
-const updateCacheDuration = (hours: number) => {
-  if (hours >= 1 && hours <= maxCacheDuration) {
-    cacheDuration.value = hours
-    try {
-      localStorage.setItem('cacheDuration', String(hours))
-      // 立即清理过期记录
-      cleanExpiredRecords()
-      saveHistoryToStorage()
-      console.log('[缓存设置] 已更新为', hours, '小时')
-    } catch (error) {
-      console.error('保存缓存设置失败:', error)
-    }
-  } else {
-    alert(`缓存时长必须在1-${maxCacheDuration}小时之间！`)
-  }
-}
-
-// 更新壁纸设置
-const updateWallpaper = (wallpaperId: string) => {
-  wallpaper.value = wallpaperId
-  try {
-    localStorage.setItem('wallpaper', wallpaperId)
-    console.log('[壁纸] 已更新为:', wallpaperId)
-  } catch (error) {
-    console.error('保存壁纸设置失败:', error)
-  }
-}
-
-// 从localStorage加载历史记录
-const loadHistoryFromStorage = () => {
-  try {
-    const saved = localStorage.getItem('heartRateHistory')
-    if (saved) {
-      historyRecords.value = JSON.parse(saved)
-      // 加载后立即清理过期记录
-      cleanExpiredRecords()
-    }
-  } catch (error) {
-    console.error('加载历史记录失败:', error)
-  }
-}
-
-// 清空历史记录
-const clearHistory = () => {
-  console.log('[历史记录] 清空所有记录')
-  historyRecords.value = []
-  localStorage.removeItem('heartRateHistory')
-}
-
-// 格式化时间
-const formatTime = (timestamp: number) => {
-  const date = new Date(timestamp)
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
-}
-
 // 切换设置面板
 const toggleSettings = () => {
   showSettings.value = !showSettings.value
 }
 
-
-// 更新音频类型
-const updateAudioType = (type: 'sine' | 'square' | 'triangle' | 'sawtooth') => {
-  audioType.value = type
-  // 保存到localStorage
-  try {
-    localStorage.setItem('audioType', type)
-  } catch (error) {
-    console.error('保存音频类型失败:', error)
-  }
+// 连接/断开设备
+const connectDevice = () => {
+  bluetoothManagerRef.value?.connectDevice()
 }
 
-// 更新预警设置
-const updateAlertSettings = (enabled: boolean, high?: number, low?: number) => {
-  alertEnabled.value = enabled
-  if (high !== undefined) highThreshold.value = high
-  if (low !== undefined) lowThreshold.value = low
+// 事件处理函数
+const handleAlertTriggered = (type: 'high' | 'low', message: string) => {
+  console.warn('[预警]', message)
+  startAlertFlash()
+}
 
-  try {
-    localStorage.setItem('alertEnabled', String(enabled))
-    if (high !== undefined) localStorage.setItem('highThreshold', String(high))
-    if (low !== undefined) localStorage.setItem('lowThreshold', String(low))
-    console.log('[预警] 设置已更新:', { enabled, high, low })
-  } catch (error) {
-    console.error('保存预警设置失败:', error)
-  }
+const handleAudioToggle = (enabled: boolean) => {
+  console.log('[音频] 开关状态:', enabled)
+}
+
+const handleAudioTypeChange = (type: 'sine' | 'square' | 'triangle' | 'sawtooth') => {
+  console.log('[音频] 类型变更:', type)
+}
+
+const handleAlertSettingsUpdate = (settings: AlertSettings) => {
+  console.log('[预警] 设置更新:', settings)
+}
+
+const handleCacheDurationUpdate = (hours: number) => {
+  cacheDuration.value = hours
+  console.log('[缓存] 时长更新:', hours)
+}
+
+const handleRecordAdded = (record: HeartRateRecord) => {
+  console.log('[历史记录] 新增记录:', record)
+}
+
+const handleRecordsCleared = () => {
+  console.log('[历史记录] 记录已清空')
 }
 
 onMounted(() => {
@@ -433,77 +145,11 @@ onMounted(() => {
   console.log('[应用] Vue版本:', '3.x')
 
   // 检查浏览器是否支持Web Bluetooth
-  if (!navigator.bluetooth) {
+  if (!bluetoothManagerRef.value?.checkBrowserSupport()) {
     console.warn('[警告] 浏览器不支持Web Bluetooth API')
     alert('您的浏览器不支持Web Bluetooth API，请使用Chrome或Edge浏览器')
   } else {
     console.log('[系统] Web Bluetooth API 可用')
-  }
-
-  // 加载历史记录
-  loadHistoryFromStorage()
-  console.log('[历史记录] 已加载', historyRecords.value.length, '条记录')
-
-  // 加载音频类型设置
-  try {
-    const savedAudioType = localStorage.getItem('audioType')
-    if (savedAudioType && ['sine', 'square', 'triangle', 'sawtooth'].includes(savedAudioType)) {
-      audioType.value = savedAudioType as 'sine' | 'square' | 'triangle' | 'sawtooth'
-      console.log('[音频] 加载音效类型:', audioType.value)
-    }
-  } catch (error) {
-    console.error('[音频] 加载音效类型失败:', error)
-  }
-
-  // 加载预警设置
-  try {
-    const savedAlertEnabled = localStorage.getItem('alertEnabled')
-    if (savedAlertEnabled !== null) {
-      alertEnabled.value = savedAlertEnabled === 'true'
-    }
-
-    const savedHighThreshold = localStorage.getItem('highThreshold')
-    if (savedHighThreshold) {
-      highThreshold.value = Number(savedHighThreshold)
-    }
-
-    const savedLowThreshold = localStorage.getItem('lowThreshold')
-    if (savedLowThreshold) {
-      lowThreshold.value = Number(savedLowThreshold)
-    }
-
-    console.log('[预警] 加载设置:', {
-      enabled: alertEnabled.value,
-      high: highThreshold.value,
-      low: lowThreshold.value
-    })
-  } catch (error) {
-    console.error('[预警] 加载设置失败:', error)
-  }
-
-  // 加载缓存设置
-  try {
-    const savedCacheDuration = localStorage.getItem('cacheDuration')
-    if (savedCacheDuration) {
-      const duration = Number(savedCacheDuration)
-      if (duration >= 1 && duration <= maxCacheDuration) {
-        cacheDuration.value = duration
-      }
-    }
-    console.log('[缓存] 加载设置:', cacheDuration.value, '小时')
-  } catch (error) {
-    console.error('[缓存] 加载设置失败:', error)
-  }
-
-  // 加载壁纸设置
-  try {
-    const savedWallpaper = localStorage.getItem('wallpaper')
-    if (savedWallpaper && wallpaperList.some(w => w.id === savedWallpaper)) {
-      wallpaper.value = savedWallpaper
-    }
-    console.log('[壁纸] 加载设置:', wallpaper.value)
-  } catch (error) {
-    console.error('[壁纸] 加载设置失败:', error)
   }
 
   // 请求通知权限
@@ -514,10 +160,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   console.log('[应用] 组件卸载，清理资源')
-  disconnectDevice()
-  if (audioContext) {
-    audioContext.close()
-    console.log('[音频] AudioContext 已关闭')
+  // 清理心跳值组件资源
+  if (heartRateManagerRef.value) {
+    heartRateManagerRef.value.cleanup()
   }
   // 清理预警闪烁定时器
   stopAlertFlash()
@@ -526,29 +171,16 @@ onUnmounted(() => {
 
 <template>
   <div :class="bodyClass" class="app-container">
-    <!-- 顶部控制栏 -->
-    <header class="top-bar">
-      <div class="brand">
-        <div class="logo">💓心动</div>
-        <div class="status-indicator" :title="statusText">
-          <span class="status-dot" :class="{ connected: isConnected }"></span>
-          <span>{{ statusText }}</span>
-        </div>
-      </div>
-
-      <div class="controls">
-        <button
-          class="connect-btn"
-          @click="connectDevice"
-          :disabled="isConnecting"
-        >
-          {{ isConnecting ? '连接中...' : (isConnected ? '断开连接' : '连接设备') }}
-        </button>
-      </div>
-    </header>
+    <!-- 顶部控制栏组件 -->
+    <AppHeader
+      :is-connected="isConnected"
+      :is-connecting="isConnecting"
+      :status-text="statusText"
+      @connect="connectDevice"
+    />
 
     <!-- 主内容 -->
-    <main :class="wallpaper" class="main-content">
+    <main class="main-content">
       <!-- 心率显示 - 左侧 -->
       <section class="heart-rate-section">
         <div class="heart-rate-display">
@@ -566,42 +198,43 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- 历史记录 -->
-      <section class="history-section">
-        <div class="history-header">
-          <h3>💓 历史心率记录</h3>
-          <button v-if="historyRecords.length > 0" class="clear-btn" @click="clearHistory">清空记录</button>
-        </div>
-        <div class="history-list" v-if="historyRecords.length > 0">
-          <div
-            v-for="(record, index) in historyRecords.slice().reverse()"
-            :key="index"
-            class="history-item"
-          >
-            <span class="history-time">{{ formatTime(record.timestamp) }}</span>
-            <span class="history-bpm">{{ record.bpm }} 次/分</span>
-          </div>
-        </div>
-        <div class="history-empty" v-else>
-          <p>暂无历史记录</p>
-          <p class="hint">连接设备后，每5秒自动记录一次心率数据</p>
-        </div>
-      </section>
+      <!-- 历史记录组件 -->
+      <HistoryManager
+        ref="historyManagerRef"
+        @record-added="handleRecordAdded"
+        @records-cleared="handleRecordsCleared"
+        @cache-duration-updated="handleCacheDurationUpdate"
+      />
     </main>
 
-    <!-- 底部信息 -->
-    <footer class="footer">
-      <div class="footer-content">
-        <div class="warning-info">
-          警告：心电图像是心率模拟结果，仅供娱乐，切勿代替医疗器械
-        </div>
-        <div class="footer-info">
-          <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>支持 |
-          <a href="https://xt.heiu.top" target="_blank">心跳</a> | 基于
-          <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>
-        </div>
-      </div>
-    </footer>
+    <!-- 底部信息组件 -->
+    <AppFooter />
+
+    <!-- 心跳值管理组件（隐藏，仅提供功能） -->
+    <HeartRateManager
+      ref="heartRateManagerRef"
+      @bpm-updated="bpm = $event"
+      @alert-triggered="handleAlertTriggered"
+      @audio-toggled="handleAudioToggle"
+      @audio-type-changed="handleAudioTypeChange"
+      @alert-settings-updated="handleAlertSettingsUpdate"
+    />
+
+    <!-- 壁纸管理组件（隐藏，仅提供功能） -->
+    <WallpaperManager
+      ref="wallpaperManagerRef"
+      @wallpaper-changed="handleWallpaperChanged"
+    />
+
+    <!-- 蓝牙管理组件（隐藏，仅提供功能） -->
+    <BluetoothManager
+      ref="bluetoothManagerRef"
+      @connected="handleBluetoothConnected"
+      @disconnected="handleBluetoothDisconnected"
+      @data-received="handleBluetoothDataReceived"
+      @connection-error="handleBluetoothError"
+      @status-change="handleStatusChange"
+    />
 
     <!-- 悬浮设置按钮 -->
     <button class="fab-settings" @click="toggleSettings" title="设置">
@@ -615,19 +248,19 @@ onUnmounted(() => {
     <SettingsPanel
       v-if="showSettings"
       @close="showSettings = false"
-      @audio-toggle="audioEnabled = $event"
-      @audio-type-change="updateAudioType"
-      @alert-update="updateAlertSettings"
-      @cache-duration-update="updateCacheDuration"
-      @wallpaper-change="updateWallpaper"
-      :audio-enabled="audioEnabled"
-      :audio-type="audioType"
-      :alert-enabled="alertEnabled"
-      :high-threshold="highThreshold"
-      :low-threshold="lowThreshold"
+      @audio-toggle="heartRateManagerRef?.toggleAudio($event)"
+      @audio-type-change="heartRateManagerRef?.updateAudioType($event)"
+      @alert-update="(enabled, high, low) => heartRateManagerRef?.updateAlertSettings({ enabled, highThreshold: high, lowThreshold: low })"
+      @cache-duration-update="historyManagerRef?.updateCacheDuration($event)"
+      @wallpaper-change="wallpaperManagerRef?.changeWallpaper($event)"
+      :audio-enabled="heartRateManagerRef?.isAudioEnabled() || false"
+      :audio-type="heartRateManagerRef?.getAudioType() || 'sine'"
+      :alert-enabled="heartRateManagerRef?.getAlertSettings().enabled || false"
+      :high-threshold="heartRateManagerRef?.getAlertSettings().highThreshold || 100"
+      :low-threshold="heartRateManagerRef?.getAlertSettings().lowThreshold || 50"
       :cache-duration="cacheDuration"
-      :wallpaper="wallpaper"
-      :wallpaper-list="wallpaperList"
+      :wallpaper="wallpaperManagerRef?.selectedWallpaper || 'gradient-blue'"
+      :wallpaper-list="wallpaperManagerRef?.wallpaperList || []"
     />
   </div>
 </template>
@@ -679,137 +312,6 @@ onUnmounted(() => {
 
 .main-content.wallpaper-solid-dark {
   background: #1a1a1a !important;
-}
-
-/* 顶部控制栏 */
-.top-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-  z-index: 100;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.logo {
-  font-size: 24px;
-  font-weight: bold;
-  color: #ff0033;
-  font-family: 'Orbitron', sans-serif;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 14px;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #666;
-  transition: all 0.3s;
-}
-
-.status-dot.connected {
-  background: #00ff00;
-  box-shadow: 0 0 10px #00ff00;
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.sound-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 14px;
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 24px;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: .4s;
-  border-radius: 24px;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-input:checked + .toggle-slider {
-  background-color: #ff0033;
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(26px);
-}
-
-.connect-btn {
-  padding: 8px 16px;
-  background: #ff0033;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s;
-}
-
-.connect-btn:hover:not(:disabled) {
-  background: #cc0029;
-  transform: translateY(-2px);
-}
-
-.connect-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .heart-rate-section {
@@ -997,60 +499,7 @@ input:checked + .toggle-slider:before {
   color: #bbb;
 }
 
-/* 底部 */
-.footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
-  padding: 15px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 100;
-}
-
-.footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.warning-info {
-  color: #ffa500;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.footer-info {
-  color: #fff;
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.footer-info a {
-  color: #9acd32;
-  text-decoration: none;
-  transition: all 0.3s;
-}
-
-.footer-info a:hover {
-  color: #7ec850;
-  text-decoration: underline;
-}
-
 /* 浅色模式 */
-.light-mode .top-bar,
-.light-mode .footer {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.1);
-}
-
-.light-mode .status-indicator,
-.light-mode .sound-control {
-  color: #333;
-}
-
 .light-mode .ecg-wrapper {
   background: rgba(255, 255, 255, 0.5);
   border-color: rgba(0, 0, 0, 0.2);
@@ -1058,18 +507,6 @@ input:checked + .toggle-slider:before {
 
 .light-mode .bpm-unit {
   color: #333;
-}
-
-.light-mode .footer-info {
-  color: #333;
-}
-
-.light-mode .footer-info a {
-  color: #6abf4b;
-}
-
-.light-mode .footer-info a:hover {
-  color: #4a9f2b;
 }
 
 /* 悬浮设置按钮 */
@@ -1126,19 +563,6 @@ input:checked + .toggle-slider:before {
 }
 
 @media (max-width: 480px) {
-  .top-bar {
-    padding: 0 10px;
-  }
-
-  .logo {
-    font-size: 18px;
-  }
-
-  .connect-btn {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-
   .bpm-value {
     font-size: 60px;
   }
