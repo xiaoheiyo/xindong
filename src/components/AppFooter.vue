@@ -5,9 +5,9 @@
         警告：心电图像是心率模拟结果，仅供娱乐，切勿代替医疗器械
       </div>
       <div class="footer-info">
-        <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>支持 |
-        <a href="https://xd.heiu.top" target="_blank">心跳</a> | 基于
-        <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>
+        <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>提供支持 |
+        <a href="https://github.com/xiaoheiyo/xindong" target="_blank">心跳</a>项目 | 基于
+        <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>制作
       </div>
     </div>
   </footer>

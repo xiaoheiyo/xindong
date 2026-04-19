@@ -351,6 +351,25 @@ onUnmounted(() => {
   min-height: 150px;  /* 设置最小高度 */
 }
 
+/* 响应式:小屏幕时垂直排列 */
+@media (max-width: 1024px) {
+  .heart-rate-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+    min-height: auto;
+  }
+  
+  .heart-rate-display {
+    width: 100%;
+  }
+  
+  .heart-rate-status {
+    width: 100%;
+    height: auto;  /* 移除固定高度 */
+  }
+}
+
 .heart-rate-display {
   display: flex;
   align-items: baseline;
@@ -437,9 +456,7 @@ onUnmounted(() => {
 /* 历史记录区域 */
 .history-section {
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+  padding: 20px 40px;  /* 与heart-rate-section保持一致的左右边距 */
   background: rgba(255, 255, 255, 0.6);
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.1);
