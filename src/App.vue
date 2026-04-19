@@ -60,7 +60,7 @@ const connectDevice = async () => {
     console.log('[蓝牙] 开始搜索设备...')
 
     // 请求蓝牙设备
-    const selectedDevice = await navigator.bluetooth.requestDevice({
+    const selectedDevice = await navigator.bluetooth!.requestDevice({
       filters: [{ services: ['heart_rate'] }]
     })
 
@@ -105,7 +105,7 @@ const connectDevice = async () => {
 // 处理心率数据变化
 const handleHeartRateChange = (event: Event) => {
   const target = event.target as BluetoothRemoteGATTCharacteristic
-  const value = target.value
+  const value = target.value!
   const flags = value.getUint8(0)
   const rate16Bits = flags & 0x1
 

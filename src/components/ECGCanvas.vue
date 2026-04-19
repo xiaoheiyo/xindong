@@ -220,14 +220,14 @@ const drawECGWaveform = (width: number, height: number) => {
   
   for (let i = 0; i < dataPoints.length; i++) {
     const x = i * stepX
-    const y = centerY - dataPoints[i] * scaleY
+    const y = centerY - dataPoints[i]! * scaleY
     
     if (i === 0) {
       ctx.moveTo(x, y)
     } else {
       // 使用二次贝塞尔曲线使线条更平滑
       const prevX = (i - 1) * stepX
-      const prevY = centerY - dataPoints[i - 1] * scaleY
+      const prevY = centerY - dataPoints[i - 1]! * scaleY
       const cpX = (prevX + x) / 2
       const cpY = (prevY + y) / 2
       ctx.quadraticCurveTo(prevX, prevY, cpX, cpY)
