@@ -48,7 +48,7 @@ const tryAddRecord = (bpm: number): boolean => {
   // 3. 心率变化超过阈值(5 BPM)
   const timeCondition = (now - lastRecordTime.value) >= props.recordInterval
   const bpmChangeCondition = Math.abs(bpm - lastRecordedBpm.value) >= 5
-  
+
   if (!timeCondition && !bpmChangeCondition) {
     return false
   }
@@ -261,7 +261,7 @@ defineExpose({
       <!-- 默认插槽内容 -->
       <div class="history-section">
         <div class="history-header">
-          <h3>💓 历史心率记录（每5秒记录一次）</h3>
+          <h3>💓 历史心率记录</h3>
           <div class="header-actions">
             <button v-if="getCount() > 0" class="export-btn" @click="exportToExcel">📊 导出记录</button>
             <button v-if="getCount() > 0" class="clear-btn" @click="clearRecords">清空记录</button>
