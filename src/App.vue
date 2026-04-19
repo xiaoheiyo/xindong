@@ -198,7 +198,7 @@ const playAlertSound = (type: 'high' | 'low') => {
 
   // 预警音效：高频急促声音
   oscillator.type = 'square'
-  
+
   if (type === 'high') {
     oscillator.frequency.value = 1000 // 过高：高频
   } else {
@@ -232,10 +232,10 @@ const checkHeartRateAlert = (heartRate: number) => {
 
   if (alertType && alertMessage) {
     console.warn('[预警]', alertMessage)
-    
+
     // 播放预警音效
     playAlertSound(alertType)
-    
+
     // 显示浏览器通知（如果允许）
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('心率预警', {
@@ -243,7 +243,7 @@ const checkHeartRateAlert = (heartRate: number) => {
         icon: '/favicon.ico'
       })
     }
-    
+
     // 更新最后预警时间
     lastAlertTime = now
   }
@@ -272,7 +272,7 @@ const saveHistoryToStorage = () => {
   try {
     // 先清理过期记录
     cleanExpiredRecords()
-    
+
     localStorage.setItem('heartRateHistory', JSON.stringify(historyRecords.value))
     console.log('[历史记录] 已保存，当前记录数:', historyRecords.value.length)
   } catch (error) {
@@ -284,12 +284,12 @@ const saveHistoryToStorage = () => {
 const cleanExpiredRecords = () => {
   const now = Date.now()
   const maxAge = cacheDuration.value * 60 * 60 * 1000 // 转换为毫秒
-  
+
   const beforeCount = historyRecords.value.length
   historyRecords.value = historyRecords.value.filter(record => {
     return (now - record.timestamp) < maxAge
   })
-  
+
   const removedCount = beforeCount - historyRecords.value.length
   if (removedCount > 0) {
     console.log('[缓存清理] 已删除', removedCount, '条过期记录')
@@ -366,7 +366,7 @@ const updateAlertSettings = (enabled: boolean, high?: number, low?: number) => {
   alertEnabled.value = enabled
   if (high !== undefined) highThreshold.value = high
   if (low !== undefined) lowThreshold.value = low
-  
+
   try {
     localStorage.setItem('alertEnabled', String(enabled))
     if (high !== undefined) localStorage.setItem('highThreshold', String(high))
@@ -410,21 +410,21 @@ onMounted(() => {
     if (savedAlertEnabled !== null) {
       alertEnabled.value = savedAlertEnabled === 'true'
     }
-    
+
     const savedHighThreshold = localStorage.getItem('highThreshold')
     if (savedHighThreshold) {
       highThreshold.value = Number(savedHighThreshold)
     }
-    
+
     const savedLowThreshold = localStorage.getItem('lowThreshold')
     if (savedLowThreshold) {
       lowThreshold.value = Number(savedLowThreshold)
     }
-    
-    console.log('[预警] 加载设置:', { 
-      enabled: alertEnabled.value, 
-      high: highThreshold.value, 
-      low: lowThreshold.value 
+
+    console.log('[预警] 加载设置:', {
+      enabled: alertEnabled.value,
+      high: highThreshold.value,
+      low: lowThreshold.value
     })
   } catch (error) {
     console.error('[预警] 加载设置失败:', error)
@@ -533,7 +533,7 @@ onUnmounted(() => {
         </div>
         <div class="footer-info">
           <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>支持 |
-          <a href="https://xt.uomao.top" target="_blank">心跳</a> | 基于
+          <a href="https://xt.heiu.top" target="_blank">心跳</a> | 基于
           <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>
         </div>
       </div>
