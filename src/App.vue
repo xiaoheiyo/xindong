@@ -23,6 +23,8 @@ const highThreshold = ref(100) // 心率过高阈值
 const lowThreshold = ref(50)   // 心率过低阈值
 let lastAlertTime = 0
 const alertInterval = 5000 // 预警间隔5秒，避免频繁报警
+const isAlertActive = ref(false) // 预警激活状态（用于边框闪烁）
+let alertFlashTimer: number | null = null
 
 // 历史记录
 interface HeartRateRecord {
@@ -244,6 +246,9 @@ const checkHeartRateAlert = (heartRate: number) => {
       })
     }
 
+    // 启动边框闪烁特效
+    startAlertFlash()
+
     // 更新最后预警时间
     lastAlertTime = now
   }
@@ -255,6 +260,30 @@ const disconnectDevice = () => {
     device.value.gatt.disconnect()
   }
   onDisconnected()
+}
+
+// 启动预警边框闪烁
+const startAlertFlash = () => {
+  isAlertActive.value = true
+  console.log('[特效] 启动边框闪烁')
+
+  // 5秒后自动停止闪烁
+  if (alertFlashTimer) {
+    clearTimeout(alertFlashTimer)
+  }
+  alertFlashTimer = window.setTimeout(() => {
+    stopAlertFlash()
+  }, 5000)
+}
+
+// 停止预警边框闪烁
+const stopAlertFlash = () => {
+  isAlertActive.value = false
+  if (alertFlashTimer) {
+    clearTimeout(alertFlashTimer)
+    alertFlashTimer = null
+  }
+  console.log('[特效] 停止边框闪烁')
 }
 
 // 断开连接处理
@@ -457,6 +486,8 @@ onUnmounted(() => {
     audioContext.close()
     console.log('[音频] AudioContext 已关闭')
   }
+  // 清理预警闪烁定时器
+  stopAlertFlash()
 })
 </script>
 
