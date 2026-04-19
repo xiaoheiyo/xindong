@@ -1,19 +1,29 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 
 const props = defineProps<{
   audioEnabled: boolean
   audioType: 'sine' | 'square' | 'triangle' | 'sawtooth'
+  alertEnabled: boolean
+  highThreshold: number
+  lowThreshold: number
+  cacheDuration: number
 }>()
 
 const emit = defineEmits<{
   close: []
   audioToggle: [enabled: boolean]
   audioTypeChange: [type: 'sine' | 'square' | 'triangle' | 'sawtooth']
+  alertUpdate: [enabled: boolean, high?: number, low?: number]
+  cacheDurationUpdate: [hours: number]
 }>()
 
 const audioEnabledLocal = ref(props.audioEnabled)
 const audioTypeLocal = ref(props.audioType)
+const alertEnabledLocal = ref(props.alertEnabled)
+const highThresholdLocal = ref(props.highThreshold)
+const lowThresholdLocal = ref(props.lowThreshold)
+const cacheDurationLocal = ref(props.cacheDuration)
 
 // 监听props变化
 watch(() => props.audioEnabled, (newValue) => {
@@ -23,6 +33,32 @@ watch(() => props.audioEnabled, (newValue) => {
 watch(() => props.audioType, (newValue) => {
   audioTypeLocal.value = newValue
 })
+
+watch(() => props.alertEnabled, (newValue) => {
+  alertEnabledLocal.value = newValue
+})
+
+watch(() => props.highThreshold, (newValue) => {
+  highThresholdLocal.value = newValue
+})
+
+watch(() => props.lowThreshold, (newValue) => {
+  lowThresholdLocal.value = newValue
+})
+
+watch(() => props.cacheDuration, (newValue) => {
+  cacheDurationLocal.value = newValue
+  updateSliderBackground()
+})
+
+// 更新滑块背景
+const updateSliderBackground = () => {
+  const percent = ((cacheDurationLocal.value - 1) / 47) * 100
+  const slider = document.querySelector('.duration-slider') as HTMLElement
+  if (slider) {
+    slider.style.setProperty('--value-percent', `${percent}%`)
+  }
+}
 
 // 关闭面板
 const handleClose = () => {
@@ -38,6 +74,47 @@ const toggleAudio = () => {
 const changeAudioType = () => {
   emit('audioTypeChange', audioTypeLocal.value)
 }
+
+// 切换预警
+const toggleAlert = () => {
+  emit('alertUpdate', alertEnabledLocal.value)
+}
+
+// 更新高阈值
+const updateHighThreshold = () => {
+  if (highThresholdLocal.value > lowThresholdLocal.value) {
+    emit('alertUpdate', alertEnabledLocal.value, highThresholdLocal.value)
+  } else {
+    alert('高阈值必须大于低阈值！')
+    highThresholdLocal.value = props.highThreshold
+  }
+}
+
+// 更新低阈值
+const updateLowThreshold = () => {
+  if (lowThresholdLocal.value < highThresholdLocal.value) {
+    emit('alertUpdate', alertEnabledLocal.value, undefined, lowThresholdLocal.value)
+  } else {
+    alert('低阈值必须小于高阈值！')
+    lowThresholdLocal.value = props.lowThreshold
+  }
+}
+
+// 更新缓存时长
+const updateCacheDuration = () => {
+  if (cacheDurationLocal.value >= 1 && cacheDurationLocal.value <= 48) {
+    updateSliderBackground()
+    emit('cacheDurationUpdate', cacheDurationLocal.value)
+  } else {
+    alert('缓存时长必须在1-48小时之间！')
+    cacheDurationLocal.value = props.cacheDuration
+  }
+}
+
+// 组件挂载时初始化滑块
+onMounted(() => {
+  updateSliderBackground()
+})
 </script>
 
 <template>
@@ -106,6 +183,82 @@ const changeAudioType = () => {
                 <span class="type-desc">尖锐</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- 预警设置 -->
+        <div class="settings-section">
+          <h4>心率预警</h4>
+          
+          <div class="setting-group">
+            <label class="toggle-switch-large">
+              <input 
+                type="checkbox" 
+                v-model="alertEnabledLocal"
+                @change="toggleAlert"
+              >
+              <span class="toggle-slider-large"></span>
+              <span class="toggle-label">启用心率预警</span>
+            </label>
+            <p class="setting-hint">心率过高或过低时发出警报</p>
+          </div>
+          
+          <div class="setting-group" v-if="alertEnabledLocal">
+            <label class="setting-label">预警阈值设置</label>
+            <div class="threshold-inputs">
+              <div class="threshold-item">
+                <label>心率过高 (BPM)</label>
+                <input 
+                  type="number" 
+                  v-model.number="highThresholdLocal"
+                  @change="updateHighThreshold"
+                  min="60"
+                  max="200"
+                  class="threshold-input"
+                />
+              </div>
+              <div class="threshold-item">
+                <label>心率过低 (BPM)</label>
+                <input 
+                  type="number" 
+                  v-model.number="lowThresholdLocal"
+                  @change="updateLowThreshold"
+                  min="30"
+                  max="90"
+                  class="threshold-input"
+                />
+              </div>
+            </div>
+            <p class="setting-hint">超出范围时将发出声音和通知警告</p>
+          </div>
+        </div>
+
+        <!-- 缓存设置 -->
+        <div class="settings-section">
+          <h4>缓存设置</h4>
+          
+          <div class="setting-group">
+            <label class="setting-label">历史记录缓存时长</label>
+            <div class="cache-duration-control">
+              <input 
+                type="range" 
+                v-model.number="cacheDurationLocal"
+                @change="updateCacheDuration"
+                min="1"
+                max="48"
+                step="1"
+                class="duration-slider"
+              />
+              <div class="duration-display">
+                <span class="duration-value">{{ cacheDurationLocal }}</span>
+                <span class="duration-unit">小时</span>
+              </div>
+              <div class="duration-hints">
+                <span class="hint-min">1小时</span>
+                <span class="hint-max">48小时</span>
+              </div>
+            </div>
+            <p class="setting-hint">超出时长的记录将自动清理，避免网页卡滞</p>
           </div>
         </div>
 
@@ -459,6 +612,128 @@ input:checked + .toggle-slider-large:before {
 
 .about-info p {
   margin: 5px 0;
+}
+
+/* 阈值输入框 */
+.threshold-inputs {
+  display: flex;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.threshold-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.threshold-item label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 500;
+}
+
+.threshold-input {
+  padding: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #333;
+  font-size: 14px;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.threshold-input:focus {
+  outline: none;
+  border-color: #ff0033;
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 3px rgba(255, 0, 51, 0.1);
+}
+
+.threshold-input::-webkit-inner-spin-button,
+.threshold-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* 缓存时长滑块 */
+.cache-duration-control {
+  margin-top: 10px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.duration-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #ff0033 0%, #ff0033 var(--value-percent, 50%), rgba(0, 0, 0, 0.1) var(--value-percent, 50%), rgba(0, 0, 0, 0.1) 100%);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.duration-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ff0033;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(255, 0, 51, 0.4);
+  transition: all 0.2s;
+}
+
+.duration-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 10px rgba(255, 0, 51, 0.6);
+}
+
+.duration-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ff0033;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(255, 0, 51, 0.4);
+  transition: all 0.2s;
+}
+
+.duration-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 10px rgba(255, 0, 51, 0.6);
+}
+
+.duration-display {
+  text-align: center;
+  margin: 15px 0 10px 0;
+}
+
+.duration-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ff0033;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  margin-right: 8px;
+}
+
+.duration-unit {
+  font-size: 16px;
+  color: #666;
+}
+
+.duration-hints {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #999;
+  padding: 0 5px;
 }
 
 /* 滚动条样式 */

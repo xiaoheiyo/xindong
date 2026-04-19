@@ -39,6 +39,7 @@ const initCanvas = () => {
   if (parent) {
     canvas.width = parent.clientWidth
     canvas.height = parent.clientHeight
+    console.log('[ECG] Canvas初始化:', canvas.width, 'x', canvas.height)
   }
   
   ctx = canvas.getContext('2d')!
@@ -50,6 +51,7 @@ const initCanvas = () => {
   
   // 初始化心跳时间
   lastBeatTime = Date.now()
+  console.log('[ECG] 初始化完成')
 }
 
 // 生成ECG波形 - 基于时间推进的真实模拟
@@ -124,6 +126,7 @@ const generateECGValue = (): number => {
   if (currentPhase >= 0.40 && currentPhase < 0.47 && !beatDetected) {
     lastBeatTime = now - (currentPhase * beatInterval) + (0.435 * beatInterval)
     beatDetected = true
+    console.log('[ECG] 检测到心跳, BPM:', props.bpm, '相位:', currentPhase.toFixed(2))
   } else if (currentPhase > 0.50) {
     beatDetected = false
   }

@@ -17,6 +17,13 @@ const characteristic = ref<BluetoothRemoteGATTCharacteristic | null>(null)
 const audioEnabled = ref(false)
 const audioType = ref<'sine' | 'square' | 'triangle' | 'sawtooth'>('sine') // 默认正弦波
 
+// 预警设置
+const alertEnabled = ref(false)
+const highThreshold = ref(100) // 心率过高阈值
+const lowThreshold = ref(50)   // 心率过低阈值
+let lastAlertTime = 0
+const alertInterval = 5000 // 预警间隔5秒，避免频繁报警
+
 // 历史记录
 interface HeartRateRecord {
   bpm: number
@@ -26,6 +33,10 @@ const historyRecords = ref<HeartRateRecord[]>([])
 const maxHistoryRecords = 50 // 最多保存50条记录
 let lastRecordTime = 0
 const recordInterval = 5000 // 每5秒记录一次
+
+// 缓存设置
+const cacheDuration = ref(24) // 默认缓存24小时（单位：小时）
+const maxCacheDuration = 48 // 最大缓存48小时
 
 // 音频上下文
 let audioContext: AudioContext | null = null
@@ -173,6 +184,71 @@ const playHeartbeatSound = (heartRate: number) => {
   oscillator.stop(audioContext.currentTime + duration)
 }
 
+// 播放预警音效
+const playAlertSound = (type: 'high' | 'low') => {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+  }
+
+  const oscillator = audioContext.createOscillator()
+  const gainNode = audioContext.createGain()
+
+  oscillator.connect(gainNode)
+  gainNode.connect(audioContext.destination)
+
+  // 预警音效：高频急促声音
+  oscillator.type = 'square'
+  
+  if (type === 'high') {
+    oscillator.frequency.value = 1000 // 过高：高频
+  } else {
+    oscillator.frequency.value = 400  // 过低：低频
+  }
+
+  gainNode.gain.setValueAtTime(0.4, audioContext.currentTime)
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+
+  oscillator.start(audioContext.currentTime)
+  oscillator.stop(audioContext.currentTime + 0.3)
+}
+
+// 检查心率预警
+const checkHeartRateAlert = (heartRate: number) => {
+  if (!alertEnabled.value || heartRate <= 0) return
+
+  const now = Date.now()
+  if (now - lastAlertTime < alertInterval) return // 避免频繁报警
+
+  let alertType: 'high' | 'low' | null = null
+  let alertMessage = ''
+
+  if (heartRate > highThreshold.value) {
+    alertType = 'high'
+    alertMessage = `⚠️ 心率过高警告！当前心率：${heartRate} BPM（阈值：${highThreshold.value} BPM）`
+  } else if (heartRate < lowThreshold.value) {
+    alertType = 'low'
+    alertMessage = `⚠️ 心率过低警告！当前心率：${heartRate} BPM（阈值：${lowThreshold.value} BPM）`
+  }
+
+  if (alertType && alertMessage) {
+    console.warn('[预警]', alertMessage)
+    
+    // 播放预警音效
+    playAlertSound(alertType)
+    
+    // 显示浏览器通知（如果允许）
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('心率预警', {
+        body: alertMessage,
+        icon: '/favicon.ico'
+      })
+    }
+    
+    // 更新最后预警时间
+    lastAlertTime = now
+  }
+}
+
 // 断开连接
 const disconnectDevice = () => {
   if (device.value && device.value.gatt?.connected) {
@@ -194,9 +270,47 @@ const onDisconnected = () => {
 // 保存历史记录到localStorage
 const saveHistoryToStorage = () => {
   try {
+    // 先清理过期记录
+    cleanExpiredRecords()
+    
     localStorage.setItem('heartRateHistory', JSON.stringify(historyRecords.value))
+    console.log('[历史记录] 已保存，当前记录数:', historyRecords.value.length)
   } catch (error) {
     console.error('保存历史记录失败:', error)
+  }
+}
+
+// 清理过期记录
+const cleanExpiredRecords = () => {
+  const now = Date.now()
+  const maxAge = cacheDuration.value * 60 * 60 * 1000 // 转换为毫秒
+  
+  const beforeCount = historyRecords.value.length
+  historyRecords.value = historyRecords.value.filter(record => {
+    return (now - record.timestamp) < maxAge
+  })
+  
+  const removedCount = beforeCount - historyRecords.value.length
+  if (removedCount > 0) {
+    console.log('[缓存清理] 已删除', removedCount, '条过期记录')
+  }
+}
+
+// 更新缓存时长设置
+const updateCacheDuration = (hours: number) => {
+  if (hours >= 1 && hours <= maxCacheDuration) {
+    cacheDuration.value = hours
+    try {
+      localStorage.setItem('cacheDuration', String(hours))
+      // 立即清理过期记录
+      cleanExpiredRecords()
+      saveHistoryToStorage()
+      console.log('[缓存设置] 已更新为', hours, '小时')
+    } catch (error) {
+      console.error('保存缓存设置失败:', error)
+    }
+  } else {
+    alert(`缓存时长必须在1-${maxCacheDuration}小时之间！`)
   }
 }
 
@@ -206,6 +320,8 @@ const loadHistoryFromStorage = () => {
     const saved = localStorage.getItem('heartRateHistory')
     if (saved) {
       historyRecords.value = JSON.parse(saved)
+      // 加载后立即清理过期记录
+      cleanExpiredRecords()
     }
   } catch (error) {
     console.error('加载历史记录失败:', error)
@@ -245,10 +361,26 @@ const updateAudioType = (type: 'sine' | 'square' | 'triangle' | 'sawtooth') => {
   }
 }
 
+// 更新预警设置
+const updateAlertSettings = (enabled: boolean, high?: number, low?: number) => {
+  alertEnabled.value = enabled
+  if (high !== undefined) highThreshold.value = high
+  if (low !== undefined) lowThreshold.value = low
+  
+  try {
+    localStorage.setItem('alertEnabled', String(enabled))
+    if (high !== undefined) localStorage.setItem('highThreshold', String(high))
+    if (low !== undefined) localStorage.setItem('lowThreshold', String(low))
+    console.log('[预警] 设置已更新:', { enabled, high, low })
+  } catch (error) {
+    console.error('保存预警设置失败:', error)
+  }
+}
+
 onMounted(() => {
   console.log('[应用] 心动心率监测系统启动')
   console.log('[应用] Vue版本:', '3.x')
-  
+
   // 检查浏览器是否支持Web Bluetooth
   if (!navigator.bluetooth) {
     console.warn('[警告] 浏览器不支持Web Bluetooth API')
@@ -270,6 +402,51 @@ onMounted(() => {
     }
   } catch (error) {
     console.error('[音频] 加载音效类型失败:', error)
+  }
+
+  // 加载预警设置
+  try {
+    const savedAlertEnabled = localStorage.getItem('alertEnabled')
+    if (savedAlertEnabled !== null) {
+      alertEnabled.value = savedAlertEnabled === 'true'
+    }
+    
+    const savedHighThreshold = localStorage.getItem('highThreshold')
+    if (savedHighThreshold) {
+      highThreshold.value = Number(savedHighThreshold)
+    }
+    
+    const savedLowThreshold = localStorage.getItem('lowThreshold')
+    if (savedLowThreshold) {
+      lowThreshold.value = Number(savedLowThreshold)
+    }
+    
+    console.log('[预警] 加载设置:', { 
+      enabled: alertEnabled.value, 
+      high: highThreshold.value, 
+      low: lowThreshold.value 
+    })
+  } catch (error) {
+    console.error('[预警] 加载设置失败:', error)
+  }
+
+  // 加载缓存设置
+  try {
+    const savedCacheDuration = localStorage.getItem('cacheDuration')
+    if (savedCacheDuration) {
+      const duration = Number(savedCacheDuration)
+      if (duration >= 1 && duration <= maxCacheDuration) {
+        cacheDuration.value = duration
+      }
+    }
+    console.log('[缓存] 加载设置:', cacheDuration.value, '小时')
+  } catch (error) {
+    console.error('[缓存] 加载设置失败:', error)
+  }
+
+  // 请求通知权限
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission()
   }
 })
 
@@ -355,8 +532,9 @@ onUnmounted(() => {
           警告：心电图像是心率模拟结果，仅供娱乐，切勿代替医疗器械
         </div>
         <div class="footer-info">
-          <span>心动心率监测</span> |
-          <span>基于 Vue 3 + Three.js</span>
+          <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>支持 |
+          <a href="https://xt.uomao.top" target="_blank">心跳</a> | 基于
+          <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>
         </div>
       </div>
     </footer>
@@ -375,8 +553,14 @@ onUnmounted(() => {
       @close="showSettings = false"
       @audio-toggle="audioEnabled = $event"
       @audio-type-change="updateAudioType"
+      @alert-update="updateAlertSettings"
+      @cache-duration-update="updateCacheDuration"
       :audio-enabled="audioEnabled"
       :audio-type="audioType"
+      :alert-enabled="alertEnabled"
+      :high-threshold="highThreshold"
+      :low-threshold="lowThreshold"
+      :cache-duration="cacheDuration"
     />
   </div>
 </template>
@@ -588,8 +772,9 @@ input:checked + .toggle-slider:before {
   font-size: 120px;
   font-weight: bold;
   color: #9acd32;
-  font-family: 'Orbitron', monospace;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
   text-shadow: 0 0 20px rgba(154, 205, 50, 0.5);
+  letter-spacing: 4px;
 }
 
 .bpm-unit {
@@ -748,6 +933,17 @@ input:checked + .toggle-slider:before {
   opacity: 0.7;
 }
 
+.footer-info a {
+  color: #9acd32;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+
+.footer-info a:hover {
+  color: #7ec850;
+  text-decoration: underline;
+}
+
 /* 浅色模式 */
 .light-mode .top-bar,
 .light-mode .footer {
@@ -771,6 +967,14 @@ input:checked + .toggle-slider:before {
 
 .light-mode .footer-info {
   color: #333;
+}
+
+.light-mode .footer-info a {
+  color: #6abf4b;
+}
+
+.light-mode .footer-info a:hover {
+  color: #4a9f2b;
 }
 
 /* 悬浮设置按钮 */
