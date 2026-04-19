@@ -170,7 +170,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div :class="bodyClass" class="app-container">
+  <div :class="[bodyClass, { 'alert-active': isAlertActive }]" class="app-container">
     <!-- 顶部控制栏组件 -->
     <AppHeader
       :is-connected="isConnected"
@@ -270,6 +270,28 @@ onUnmounted(() => {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
+}
+
+/* 预警激活时的边框闪烁效果 - 使用伪元素置顶 */
+.app-container.alert-active::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  animation: alertBorderFlash 0.5s ease-in-out infinite;
+}
+
+@keyframes alertBorderFlash {
+  0%, 100% {
+    box-shadow: inset 0 0 0 4px rgba(255, 0, 0, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 50px 8px rgba(255, 0, 0, 0.9);
+  }
 }
 
 /* 主内容区背景壁纸 */

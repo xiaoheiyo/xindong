@@ -6,7 +6,7 @@
       </div>
       <div class="footer-info">
         <a href="https://www.heiu.top" target="_blank">嘿哟博客</a>支持 |
-        <a href="https://xt.heiu.top" target="_blank">心跳</a> | 基于
+        <a href="https://xd.heiu.top" target="_blank">心跳</a> | 基于
         <a href="https://cn.vitejs.dev/" target="_blank">Vue 3</a>
       </div>
     </div>

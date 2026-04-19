@@ -11,7 +11,8 @@ const canvasRef = ref<HTMLCanvasElement>()
 let ctx: CanvasRenderingContext2D
 let animationId: number
 const dataPoints: number[] = []
-const maxDataPoints = 800
+// 根据6秒显示和帧率计算数据点数量 (假设60fps)
+const maxDataPoints = 60 * 6 // 6秒 * 60帧 = 360个点
 
 // ECG波形参数 - 更接近真实心电图
 const ecgParams = {
@@ -141,6 +142,7 @@ const draw = () => {
   const canvas = canvasRef.value
   const width = canvas.width
   const height = canvas.height
+  const now = Date.now()
   
   // 清空画布
   ctx.clearRect(0, 0, width, height)
@@ -148,18 +150,25 @@ const draw = () => {
   // 绘制医疗网格背景
   drawMedicalGrid(width, height)
   
-  // 更新数据点 - 每次添加一个新点
+  // 更新数据点 - 每帧添加一个新点
   const newValue = generateECGValue()
   dataPoints.push(newValue)
+  
+  // 保持6秒的数据量
   if (dataPoints.length > maxDataPoints) {
     dataPoints.shift()
   }
   
-  // 绘制ECG波形 - 绿色荧光效果
+  // 绘制ECG波形
   drawECGWaveform(width, height)
   
-  // 绘制扫描线（从左到右移动）
+  // 绘制扫描线（从上到下垂直扫描）
   drawScanLine(width, height)
+  
+  // 在心跳时刻添加视觉反馈
+  if (beatDetected) {
+    drawHeartbeatIndicator(width, height)
+  }
 }
 
 // 绘制医疗网格
@@ -225,12 +234,8 @@ const drawECGWaveform = (width: number, height: number) => {
     if (i === 0) {
       ctx.moveTo(x, y)
     } else {
-      // 使用二次贝塞尔曲线使线条更平滑
-      const prevX = (i - 1) * stepX
-      const prevY = centerY - dataPoints[i - 1]! * scaleY
-      const cpX = (prevX + x) / 2
-      const cpY = (prevY + y) / 2
-      ctx.quadraticCurveTo(prevX, prevY, cpX, cpY)
+      // 使用线性连接,保持波形的真实性
+      ctx.lineTo(x, y)
     }
   }
   
@@ -240,22 +245,44 @@ const drawECGWaveform = (width: number, height: number) => {
   ctx.shadowBlur = 0
 }
 
-// 绘制扫描线
+// 绘制扫描线(从上到下垂直扫描)
 const drawScanLine = (width: number, height: number) => {
-  const scanX = ((Date.now() / 20) % width)
+  // 固定扫描速度，与心率无关
+  const scanSpeed = 3 // 像素/帧
+  const scanY = ((Date.now() / (1000 / 60) * scanSpeed) % height)
   
-  // 扫描线渐变效果
-  const gradient = ctx.createLinearGradient(scanX - 50, 0, scanX + 50, 0)
+  // 扫描线渐变效果 - 垂直方向
+  const gradient = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 30)
   gradient.addColorStop(0, 'rgba(255, 255, 255, 0)')
-  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)')
+  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)')
   gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
   
   ctx.strokeStyle = gradient
   ctx.lineWidth = 3
   ctx.beginPath()
-  ctx.moveTo(scanX, 0)
-  ctx.lineTo(scanX, height)
+  ctx.moveTo(0, scanY)
+  ctx.lineTo(width, scanY)
   ctx.stroke()
+}
+
+// 绘制心跳指示器（R波峰值时的闪烁效果）
+const drawHeartbeatIndicator = (width: number, height: number) => {
+  const centerY = height / 2
+  
+  // 绘制一个闪烁的圆点
+  const pulseSize = 8 + Math.sin(Date.now() * 0.02) * 3
+  const alpha = 0.6 + Math.sin(Date.now() * 0.015) * 0.3
+  
+  ctx.fillStyle = `rgba(255, 0, 51, ${alpha})`
+  ctx.shadowBlur = 20
+  ctx.shadowColor = '#ff0033'
+  
+  ctx.beginPath()
+  ctx.arc(width - 50, centerY, pulseSize, 0, Math.PI * 2)
+  ctx.fill()
+  
+  // 重置阴影
+  ctx.shadowBlur = 0
 }
 
 // 动画循环

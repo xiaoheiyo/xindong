@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 
 export interface HeartRateRecord {
   bpm: number
@@ -34,33 +35,33 @@ const currentCacheDuration = ref<number>(props.cacheDuration)
 // 尝试添加一条心率记录
 const tryAddRecord = (bpm: number): boolean => {
   const now = Date.now()
-  
+
   // 检查是否满足记录条件
   if (now - lastRecordTime.value < props.recordInterval || bpm <= 0) {
     return false
   }
-  
+
   // 添加新记录
   const newRecord: HeartRateRecord = {
     bpm,
     timestamp: now
   }
-  
+
   records.value.push(newRecord)
-  
+
   // 限制记录数量
   if (records.value.length > props.maxRecords) {
     records.value.shift()
   }
-  
+
   lastRecordTime.value = now
-  
+
   // 保存到localStorage
   saveToStorage()
-  
+
   // 触发事件
   emit('record-added', newRecord)
-  
+
   console.log('[历史记录] 已保存，当前记录数:', records.value.length)
   return true
 }
@@ -76,6 +77,52 @@ const clearRecords = () => {
   records.value = []
   localStorage.removeItem('heartRateHistory')
   emit('records-cleared')
+}
+
+// 导出记录为Excel
+const exportToExcel = () => {
+  if (records.value.length === 0) {
+    alert('暂无记录可导出！')
+    return
+  }
+
+  try {
+    // 准备数据
+    const exportData = records.value.map(record => ({
+      '时间': formatTime(record.timestamp),
+      '日期': new Date(record.timestamp).toLocaleDateString('zh-CN'),
+      '心率(BPM)': record.bpm,
+      '时间戳': new Date(record.timestamp).toISOString()
+    }))
+
+    // 创建工作簿
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+
+    // 设置列宽
+    worksheet['!cols'] = [
+      { wch: 12 }, // 时间
+      { wch: 12 }, // 日期
+      { wch: 12 }, // 心率
+      { wch: 25 }  // 时间戳
+    ]
+
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(workbook, worksheet, '心率记录')
+
+    // 生成文件名（包含当前日期时间）
+    const now = new Date()
+    const fileName = `心率记录_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.xlsx`
+
+    // 下载文件
+    XLSX.writeFile(workbook, fileName)
+
+    console.log('[导出] 成功导出', records.value.length, '条记录')
+    alert(`✅ 成功导出 ${records.value.length} 条心率记录！`)
+  } catch (error) {
+    console.error('[导出] 失败:', error)
+    alert('❌ 导出失败，请重试！')
+  }
 }
 
 // 更新缓存时长设置
@@ -119,7 +166,7 @@ const saveToStorage = () => {
   try {
     // 先清理过期记录
     cleanExpiredRecords()
-    
+
     localStorage.setItem('heartRateHistory', JSON.stringify(records.value))
   } catch (error) {
     console.error('保存历史记录失败:', error)
@@ -130,12 +177,12 @@ const saveToStorage = () => {
 const cleanExpiredRecords = () => {
   const now = Date.now()
   const maxAge = currentCacheDuration.value * 60 * 60 * 1000 // 转换为毫秒
-  
+
   const beforeCount = records.value.length
   records.value = records.value.filter(record => {
     return (now - record.timestamp) < maxAge
   })
-  
+
   const removedCount = beforeCount - records.value.length
   if (removedCount > 0) {
     console.log('[缓存清理] 已删除', removedCount, '条过期记录')
@@ -155,7 +202,7 @@ const loadFromStorage = () => {
   } catch (error) {
     console.error('加载历史记录失败:', error)
   }
-  
+
   // 加载缓存设置
   try {
     const savedCacheDuration = localStorage.getItem('cacheDuration')
@@ -180,6 +227,7 @@ onMounted(() => {
 defineExpose({
   tryAddRecord,
   clearRecords,
+  exportToExcel,
   updateCacheDuration,
   getRecordsReversed,
   formatTime,
@@ -190,7 +238,7 @@ defineExpose({
 
 <template>
   <div class="history-manager">
-    <slot 
+    <slot
       :records="getRecordsReversed()"
       :count="getCount()"
       :clear-records="clearRecords"
@@ -199,8 +247,11 @@ defineExpose({
       <!-- 默认插槽内容 -->
       <div class="history-section">
         <div class="history-header">
-          <h3>💓 历史心率记录</h3>
-          <button v-if="getCount() > 0" class="clear-btn" @click="clearRecords">清空记录</button>
+          <h3>💓 历史心率记录（每5秒记录一次）</h3>
+          <div class="header-actions">
+            <button v-if="getCount() > 0" class="export-btn" @click="exportToExcel">📊 导出记录</button>
+            <button v-if="getCount() > 0" class="clear-btn" @click="clearRecords">清空记录</button>
+          </div>
         </div>
         <div class="history-list" v-if="getCount() > 0">
           <div
@@ -243,6 +294,27 @@ defineExpose({
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 2px solid rgba(255, 0, 51, 0.3);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.export-btn {
+  padding: 6px 12px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s;
+}
+
+.export-btn:hover {
+  background: #45a049;
+  transform: translateY(-1px);
 }
 
 .history-header h3 {
